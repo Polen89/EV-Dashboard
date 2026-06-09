@@ -2,12 +2,15 @@ from flask import Flask, render_template, jsonify, request, Response
 import sqlite3
 import pandas as pd
 from io import StringIO
+import os
 
 app = Flask(__name__)
 DB = "electric_vehicles.db"
 ALLOWED_VIEWS = {"model", "city", "year"}
 ALLOWED_LIMITS = {5, 10, 25, 50}
 
+if not os.path.exists(DB):
+    import csv_loader
 
 def query_db(sql: str, params=None):
     conn = sqlite3.connect(DB)
