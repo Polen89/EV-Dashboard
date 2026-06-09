@@ -1,0 +1,7 @@
+database:
+  name: my_database
+  host: localhost
+
+paths:
+  downloads: C:\User\polen\Downloads
+  output: C:\User\polen\Documents
