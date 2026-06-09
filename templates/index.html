@@ -207,8 +207,8 @@ async function loadChart(make) {
     const labels = data.labels || [];
     const values = data.values || [];
     const makes = data.makes || [];
-    const colors = activeTab === "model"
-        ? makes.map((make, index) => MAKE_COLORS[make] || CHART_PALETTE[index % CHART_PALETTE.length])
+    const colors = activeTab === "model" && !make
+        ? makes.map((m, index) => MAKE_COLORS[m] || CHART_PALETTE[index % CHART_PALETTE.length])
         : labels.map((_, index) => CHART_PALETTE[index % CHART_PALETTE.length]);
 
     if (chart) chart.destroy();
@@ -227,6 +227,10 @@ async function loadChart(make) {
             }]
         },
         options: {
+            animation: {
+                duration: 800,
+                easing: "easeInOutQuart"
+            },
             responsive: true,
             maintainAspectRatio: false,
             indexAxis: "y",
@@ -274,6 +278,10 @@ function loadSecondaryChart(labels, values, colors) {
             }]
         },
         options: {
+            animation: {
+                duration: 800,
+                easing: "easeInOutQuart"
+            },
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
