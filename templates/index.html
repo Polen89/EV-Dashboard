@@ -213,6 +213,9 @@ async function loadChart(make) {
 
     if (chart) chart.destroy();
 
+    const rowHeight = 32;
+    document.getElementById("evChart").parentElement.style.height = `${Math.max(300, labels.length * rowHeight)}px`;
+
     chart = new Chart(document.getElementById("evChart"), {
         type: "bar",
         data: {
