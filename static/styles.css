@@ -234,11 +234,6 @@ select,
     min-height: 420px;
 }
 
-.chart-box canvas {
-    width: 100% !important;
-    height: calc(100% - 32px) !important;
-}
-
 .section-title {
     font-size: 0.9rem;
     font-weight: 700;
@@ -249,8 +244,8 @@ select,
 }
 
 #results {
-    margin-bottom: .5rem;
-    margin-top: 1rem
+    margin-bottom: .5rem !important;
+    margin-top: 1rem !important;
 }
 
 .table-box {
