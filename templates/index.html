@@ -253,11 +253,13 @@ async function loadChart(make) {
                     grid: { color: "#2a2f45" }
                 },
                 y: {
-                    ticks: { color: "#e0e0e0" },
-                    autoskip: false,
-                    font: { size: 11 },
+                    ticks: {
+                        color: "#e0e0e0",
+                        autoskip: false,
+                        font: { size: 11 }
+                    },
+                    grid: { display: false }
                 },
-                grid: { display: false }
             }
         }
     });
