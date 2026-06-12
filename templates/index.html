@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EV Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
@@ -255,7 +255,7 @@ async function loadChart(make) {
                 y: {
                     ticks: {
                         color: "#e0e0e0",
-                        autoskip: false,
+                        autoSkip: false,
                         font: { size: 11 }
                     },
                     grid: { display: false }
