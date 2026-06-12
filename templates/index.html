@@ -234,15 +234,18 @@ async function loadChart(make) {
             maintainAspectRatio: false,
             indexAxis: "y",
             interaction: {
-                mode: "nearest",
+                mode: "index",
                 axis: "y",
-                intersect: true,
+                intersect: false,
             },
             onClick: () => {},
             plugins: {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
+                        mode: "index",
+                        axis: "y",
+                        intersect: false,
                         label: (ctx) => ` ${Number(ctx.parsed.x || 0).toLocaleString()} vehicles`
                     }
                 }
