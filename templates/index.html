@@ -213,7 +213,7 @@ async function loadChart(make) {
 
     if (chart) chart.destroy();
 
-    const rowHeight = 40;
+    const rowHeight = 28;
     document.getElementById("evChart").parentElement.style.height = `${Math.max(300, labels.length * rowHeight)}px`;
 
     chart = new Chart(document.getElementById("evChart"), {
@@ -225,8 +225,8 @@ async function loadChart(make) {
                 data: values,
                 backgroundColor: colors,
                 borderRadius: 6,
-                barThickness: 24,
-                maxBarThickness: 28,
+                barPercentage: 0.9,
+                categoryPercentage: 0.9,
             }]
         },
         options: {
