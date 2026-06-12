@@ -214,8 +214,9 @@ async function loadChart(make) {
     if (chart) chart.destroy();
 
     const rowHeight = 40;
-    const chartHeight = Math.max(420, labels.length * rowHeight);
-    document.getElementById("evChart").closest(".chart-box").style.height = `${chartHeight}px`;
+    const chartHeight = Math.max(300, labels.length * rowHeight);
+    const canvas = document.getElementById("evChart");
+    canvas.style.height = `${chartHeight}px`;
 
     chart = new Chart(document.getElementById("evChart"), {
         type: "bar",
@@ -232,7 +233,8 @@ async function loadChart(make) {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: 1.5,
             indexAxis: "y",
             interaction: {
                 mode: "index",
