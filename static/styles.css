@@ -226,8 +226,12 @@ select,
 
 .chart-box {
     position: relative;
-    height: 420px;
+    min-height: 420px;
     padding: 24px;
+}
+
+.chart-box canvas {
+    width: 100% !important;
 }
 
 .small-chart-box {
@@ -303,7 +307,6 @@ tbody td:nth-child(2) {
     .chart-box,
     .small-chart-box {
         min-height: 380px;
-        height: 380px;
     }
 }
 
