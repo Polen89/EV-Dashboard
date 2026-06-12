@@ -235,6 +235,11 @@ async function loadChart(make) {
             responsive: true,
             maintainAspectRatio: false,
             indexAxis: "y",
+            interaction: {
+                mode: "nearest",
+                axis: "y",
+                intersect: true,
+            },
             onClick: () => {},
             plugins: {
                 legend: { display: false },
