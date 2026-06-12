@@ -1,236 +1,379 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>EV Dashboard</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV Dashboard</title>
+   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-  <header>
-    <h1>Electric Vehicle Dashboard</h1>
-    <div class="controls">
-      <select id="makeFilter"><option value="">All Makes</option></select>
-      <select id="yearFilter"><option value="">All Years</option></select>
-      <button id="downloadBtn">Download CSV</button>
+<div class="header">
+    <h1>⚡ EV Dashboard</h1>
+    <div class="meta">
+        last updated<br>
+        <span id="timestamp"></span>
     </div>
-  </header>
+</div>
 
-  <main>
-    <section class="charts">
-      <div class="chart-card">
-        <h2>Top 10 Makes by Count</h2>
-        <div class="chart-wrapper">
-          <canvas id="barChart"></canvas>
-        </div>
-      </div>
-      <div class="chart-card">
-        <h2>EV Type Distribution</h2>
-        <div class="chart-wrapper">
-          <canvas id="donutChart"></canvas>
-        </div>
-      </div>
-    </section>
+<div class="toolbar">
+    <input type="text" id="searchInput" placeholder="Search table..." oninput="filterTable()">
 
-    <section class="table-section">
-      <h2>Vehicle Records</h2>
-      <div id="tableContainer"></div>
-      <div class="pagination">
-        <button id="prevBtn">Prev</button>
-        <span id="pageInfo"></span>
-        <button id="nextBtn">Next</button>
-      </div>
-    </section>
-  </main>
+    <div class="filter-bar">
+        <select id="makeFilter" onchange="loadAll()">
+            <option value="">All Makes</option>
+            {% for make in makes %}
+            <option value="{{ make }}">{{ make }}</option>
+            {% endfor %}
+        </select>
 
-  <script>
-    let barChart, donutChart;
-    let currentPage = 1;
-    const perPage = 20;
-    let currentMake = '', currentYear = '';
+        <select id="limitFilter" onchange="loadAll()">
+            <option value="5">Top 5</option>
+            <option value="10" selected>Top 10</option>
+            <option value="25">Top 25</option>
+            <option value="50">Top 50</option>
+        </select>
 
-    // --- Populate Filters ---
-    async function loadFilters() {
-      const res = await fetch('/api/summary');
-      const data = await res.json();
+        <button id="exportBtn" class="action-btn" onclick="exportCSV()">Download CSV</button>
+    </div>
+</div>
 
-      const makeSelect = document.getElementById('makeFilter');
-      const yearSelect = document.getElementById('yearFilter');
+<div id="statusMessage" class="status-message hidden"></div>
 
-      data.makes.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m; opt.textContent = m;
-        makeSelect.appendChild(opt);
-      });
+<div class="cards">
+    <div class="card">
+        <div class="label">Total Vehicles</div>
+        <div class="value" id="totalVehicles">—</div>
+    </div>
+    <div class="card">
+        <div class="label">Top Make</div>
+        <div class="value" id="topMake">—</div>
+        <span class="tooltip" id="topMakeTip"></span>
+    </div>
+    <div class="card">
+        <div class="label">Top Model</div>
+        <div class="value" id="topModel">—</div>
+        <span class="tooltip" id="topModelTip"></span>
+    </div>
+</div>
 
-      data.years.forEach(y => {
-        const opt = document.createElement('option');
-        opt.value = y; opt.textContent = y;
-        yearSelect.appendChild(opt);
-      });
+<div class="tabs">
+    <button class="tab active" onclick="setTab('model', event)">By Model</button>
+    <button class="tab" onclick="setTab('city', event)">By City</button>
+    <button class="tab" onclick="setTab('year', event)">By Year</button>
+</div>
+
+<div class="charts-grid">
+    <div class="chart-box">
+        <div class="section-title">Primary ranking</div>
+        <canvas id="evChart"></canvas>
+    </div>
+
+    <div class="chart-box small-chart-box">
+        <div class="section-title">Distribution snapshot</div>
+        <canvas id="secondaryChart"></canvas>
+    </div>
+</div>
+
+<div class="table-box">
+    <div class="section-title" id="results">Results table</div>
+    <table>
+        <thead>
+            <tr id="tableHead">
+                <th>Make</th>
+                <th>Model</th>
+                <th class="total-col">Total</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
+
+<script>
+document.getElementById("timestamp").textContent = new Date().toLocaleString();
+
+const MAKE_COLORS = {
+    "TESLA": "#e31937",
+    "NISSAN": "#c3002f",
+    "CHEVROLET": "#ffd700",
+    "FORD": "#003476",
+    "VOLKSWAGEN": "#001e50",
+    "HYUNDAI": "#002c5f",
+    "KIA": "#bb162b",
+    "BMW": "#0066b1",
+    "AUDI": "#bb0a14",
+    "JEEP": "#3a7d44"
+};
+
+const DEFAULT_COLOR = "#4f98a3";
+const CHART_PALETTE = [
+    "#4f98a3",
+    "#66b8c5",
+    "#7c6cf2",
+    "#f28f6c",
+    "#9ccc65",
+    "#ffd166",
+    "#ef476f",
+    "#06d6a0",
+    "#118ab2",
+    "#b388eb",
+    "#ff9f1c",
+    "#8ecae6"
+];
+
+let activeTab = "model";
+let chart = null;
+let secondaryChart = null;
+
+function animateCount(elementId, target) {
+    const el = document.getElementById(elementId);
+    const duration = 800;
+    const start = performance.now();
+
+    function update(now) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        const current = Math.floor(progress * target);
+        el.textContent = current.toLocaleString();
+        if (progress < 1) requestAnimationFrame(update);
     }
 
-    // --- Bar Chart ---
-    async function loadBarChart() {
-      const params = new URLSearchParams({ make: currentMake, year: currentYear });
-      const res = await fetch(`/api/chart?${params}`);
-      const data = await res.json();
+    requestAnimationFrame(update);
+}
 
-      const ctx = document.getElementById('barChart').getContext('2d');
-      if (barChart) barChart.destroy();
+function getMake() {
+    return document.getElementById("makeFilter").value;
+}
 
-      barChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: data.labels,
-          datasets: [{
-            label: 'Vehicle Count',
-            data: data.values,
-            backgroundColor: 'rgba(99, 179, 237, 0.8)',
-            borderColor: 'rgba(99, 179, 237, 1)',
-            borderWidth: 1,
-            borderRadius: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          interaction: {
-            mode: 'index',
-            intersect: false
-          },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: '#1e293b',
-              titleColor: '#94a3b8',
-              bodyColor: '#e2e8f0',
-              padding: 10
-            }
-          },
-          scales: {
-            x: {
-              ticks: { color: '#94a3b8' },
-              grid: { color: 'rgba(255,255,255,0.05)' }
-            },
-            y: {
-              ticks: { color: '#94a3b8' },
-              grid: { color: 'rgba(255,255,255,0.08)' }
-            }
-          }
-        }
-      });
-    }
+function getLimit() {
+    return document.getElementById("limitFilter").value;
+}
 
-    // --- Donut Chart ---
-    async function loadDonutChart() {
-      const params = new URLSearchParams({ make: currentMake, year: currentYear });
-      const res = await fetch(`/api/chart/type?${params}`);
-      const data = await res.json();
+function setTab(tab, event) {
+    activeTab = tab;
+    document.querySelectorAll(".tab").forEach(btn => btn.classList.remove("active"));
+    event.target.classList.add("active");
+    loadAll();
+}
 
-      const ctx = document.getElementById('donutChart').getContext('2d');
-      if (donutChart) donutChart.destroy();
+function filterTable() {
+    const query = document.getElementById("searchInput").value.toLowerCase();
+    const rows = document.querySelectorAll("#tableBody tr");
 
-      donutChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: data.labels,
-          datasets: [{
-            data: data.values,
-            backgroundColor: [
-              'rgba(99,179,237,0.85)',
-              'rgba(154,230,180,0.85)',
-              'rgba(251,211,141,0.85)',
-              'rgba(252,129,129,0.85)'
-            ],
-            borderColor: '#1e293b',
-            borderWidth: 3
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: { color: '#94a3b8', padding: 16, boxWidth: 14 }
-            },
-            tooltip: {
-              backgroundColor: '#1e293b',
-              titleColor: '#94a3b8',
-              bodyColor: '#e2e8f0',
-              padding: 10
-            }
-          }
-        }
-      });
-    }
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(query) ? "" : "none";
+    });
+}
 
-    // --- Table ---
-    async function loadTable() {
-      const params = new URLSearchParams({
-        make: currentMake,
-        year: currentYear,
-        page: currentPage,
-        per_page: perPage
-      });
-      const res = await fetch(`/api/table?${params}`);
-      const data = await res.json();
+function setStatus(message = "", type = "info") {
+    const box = document.getElementById("statusMessage");
 
-      const container = document.getElementById('tableContainer');
-      if (!data.records || data.records.length === 0) {
-        container.innerHTML = '<p class="no-data">No records found.</p>';
+    if (!message) {
+        box.textContent = "";
+        box.className = "status-message hidden";
         return;
-      }
-
-      const headers = Object.keys(data.records[0]);
-      let html = '<table><thead><tr>';
-      headers.forEach(h => { html += `<th>${h}</th>`; });
-      html += '</tr></thead><tbody>';
-      data.records.forEach(row => {
-        html += '<tr>';
-        headers.forEach(h => { html += `<td>${row[h] ?? ''}</td>`; });
-        html += '</tr>';
-      });
-      html += '</tbody></table>';
-      container.innerHTML = html;
-
-      document.getElementById('pageInfo').textContent =
-        `Page ${data.page} of ${data.total_pages}`;
-      document.getElementById('prevBtn').disabled = data.page <= 1;
-      document.getElementById('nextBtn').disabled = data.page >= data.total_pages;
     }
 
-    // --- Events ---
-    document.getElementById('makeFilter').addEventListener('change', e => {
-      currentMake = e.target.value; currentPage = 1;
-      loadBarChart(); loadDonutChart(); loadTable();
+    box.textContent = message;
+    box.className = `status-message ${type}`;
+}
+
+function getChartTitle() {
+    if (activeTab === "city") return "Top cities by EV count";
+    if (activeTab === "year") return "EV registrations by model year";
+    return "Top make/model combinations";
+}
+
+async function fetchJSON(url) {
+    const res = await fetch(url);
+    if (!res.ok) {
+        throw new Error(`Request failed: ${res.status}`);
+    }
+    return res.json();
+}
+
+async function loadSummary(make) {
+    const data = await fetchJSON(`/api/summary?make=${encodeURIComponent(make)}`);
+    animateCount("totalVehicles", data.total || 0);
+    document.getElementById("topMake").textContent = data.top_make || "-";
+    document.getElementById("topModel").textContent = data.top_model || "-";
+    document.getElementById("topMakeTip").textContent = `${data.top_make_pct ?? 0}% of total`;
+    document.getElementById("topModelTip").textContent = `${data.top_model_pct ?? 0}% of total`;
+}
+
+async function loadChart(make) {
+    const data = await fetchJSON(`/api/chart?make=${encodeURIComponent(make)}&limit=${getLimit()}&view=${activeTab}`);
+    const labels = data.labels || [];
+    const values = data.values || [];
+    const makes = data.makes || [];
+    const colors = activeTab === "model" && !make
+        ? makes.map((m, index) => MAKE_COLORS[m] || CHART_PALETTE[index % CHART_PALETTE.length])
+        : labels.map((_, index) => CHART_PALETTE[index % CHART_PALETTE.length]);
+
+    if (chart) chart.destroy();
+
+    const rowHeight = 40;
+    const chartHeight = Math.max(300, labels.length * rowHeight);
+    const canvas = document.getElementById("evChart");
+    canvas.style.height = `${chartHeight}px`;
+
+    chart = new Chart(document.getElementById("evChart"), {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{
+                label: getChartTitle(),
+                data: values,
+                backgroundColor: colors,
+                borderRadius: 6,
+                barPercentage: 0.9,
+                categoryPercentage: 0.9,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            aspectRatio: 1.5,
+            indexAxis: "y",
+            interaction: {
+                mode: "index",
+                axis: "y",
+                intersect: false,
+            },
+            onClick: () => {},
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        mode: "index",
+                        axis: "y",
+                        intersect: false,
+                        label: (ctx) => ` ${Number(ctx.parsed.x || 0).toLocaleString()} vehicles`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    min: 0,
+                    ticks: {
+                        color: "#8f9bb3",
+                        callback: (value) => Number(value).toLocaleString()
+                    },
+                    grid: { color: "#2a2f45" }
+                },
+                y: {
+                    ticks: {
+                        color: "#e0e0e0",
+                        autoSkip: false,
+                        font: { size: 11 }
+                    },
+                    grid: { display: false }
+                },
+            }
+        }
     });
 
-    document.getElementById('yearFilter').addEventListener('change', e => {
-      currentYear = e.target.value; currentPage = 1;
-      loadBarChart(); loadDonutChart(); loadTable();
-    });
+    loadSecondaryChart(labels, values, colors);
+}
 
-    document.getElementById('prevBtn').addEventListener('click', () => {
-      if (currentPage > 1) { currentPage--; loadTable(); }
-    });
+function loadSecondaryChart(labels, values, colors) {
+    if (secondaryChart) secondaryChart.destroy();
 
-    document.getElementById('nextBtn').addEventListener('click', () => {
-      currentPage++; loadTable();
+    secondaryChart = new Chart(document.getElementById("secondaryChart"), {
+        type: "doughnut",
+        data: {
+            labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors,
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: "bottom",
+                    onClick: () => {},
+                    labels: {
+                        color: "#d7dced",
+                        boxWidth: 12,
+                        padding: 16
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => {
+                            const label = ctx.label || "";
+                            const value = Number(ctx.parsed || 0).toLocaleString();
+                            return `${label}: ${value} vehicles`;
+                        }
+                    }
+                }
+            }
+        }
     });
+}
 
-    document.getElementById('downloadBtn').addEventListener('click', () => {
-      const params = new URLSearchParams({ make: currentMake, year: currentYear });
-      window.location = `/api/download?${params}`;
-    });
+async function loadTable(make) {
+    const data = await fetchJSON(`/api/table?make=${encodeURIComponent(make)}&limit=${getLimit()}&view=${activeTab}`);
+    const tbody = document.getElementById("tableBody");
+    const head = document.getElementById("tableHead");
 
-    // --- Init ---
-    loadFilters();
-    loadBarChart();
-    loadDonutChart();
-    loadTable();
-  </script>
+    if (!data.length) {
+        head.innerHTML = "<th>Results</th>";
+        tbody.innerHTML = `<tr><td>No data found for the current filters.</td></tr>`;
+        return;
+    }
+
+    const keys = Object.keys(data[0]);
+    head.innerHTML = keys.map((k, i) =>
+        `<th class="${i === keys.length - 1 ? 'total-col' : ''}">${k}</th>`
+    ).join("");
+
+    tbody.innerHTML = data.map(row => `
+        <tr>
+            ${keys.map((k, i) => {
+                const value = row[k];
+                const displayValue = k.toLowerCase() === "total" && typeof value === "number"
+                    ? value.toLocaleString()
+                    : value;
+                return `<td class="${i === keys.length - 1 ? 'total-col' : ''}">${displayValue ?? "-"}</td>`;
+            }).join("")}
+        </tr>
+    `).join("");
+
+    filterTable();
+}
+
+function exportCSV() {
+    const make = encodeURIComponent(getMake());
+    const limit = getLimit();
+    const url = `/api/export?make=${make}&limit=${limit}&view=${activeTab}`;
+    window.location.href = url;
+}
+
+async function loadAll() {
+    const make = getMake();
+    setStatus("Loading dashboard...", "info");
+
+    try {
+        await Promise.all([
+            loadSummary(make),
+            loadChart(make),
+            loadTable(make)
+        ]);
+        setStatus("");
+    } catch (error) {
+        console.error(error);
+        setStatus("Could not load dashboard data. Check your API routes and database.", "error");
+    }
+}
+
+loadAll();
+</script>
 </body>
 </html>
