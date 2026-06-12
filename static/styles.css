@@ -228,6 +228,7 @@ select,
     position: relative;
     height: 420px;
     padding: 24px;
+    overflow-y: auto;
 }
 
 .small-chart-box {
