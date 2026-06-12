@@ -226,6 +226,7 @@ select,
 
 .chart-box {
     position: relative;
+    height: 420px;
     padding: 24px;
     overflow: visible;
 }
